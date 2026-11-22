@@ -1,3 +1,18 @@
+<a href="https://michaelmuckkremtz.github.io/glb-viewer/">
+  <p align="center">
+    <img src="logo.svg" width="140" alt="GLB Web Toolkit">
+  </p>
+</a>
+
+## 🌐 Open now — no install, no login
+
+- **3D Viewer** → https://michaelmuckkremtz.github.io/glb-viewer/
+- **GLB Compressor** → https://michaelmuckkremtz.github.io/glb-viewer/compress.html
+
+<sub>On a phone: open the viewer, tap **browse**, pick a `.glb` from Files. Share → *Add to Home Screen* makes it an app.</sub>
+
+---
+
 # GLB Web Toolkit
 
 Two self-contained, zero-dependency web tools for 3D model files. No server,

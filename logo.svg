@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- app tile -->
+  <rect x="4" y="4" width="248" height="248" rx="56" fill="#0f141f"/>
+  <!-- isometric cube -->
+  <polygon points="128,40 202,83 128,126 54,83" fill="#8fb4ff"/>
+  <polygon points="128,126 202,83 202,169 128,212" fill="#3d5fc4"/>
+  <polygon points="54,83 128,126 128,212 54,169" fill="#27408c"/>
+  <!-- magnifier (bottom-right) -->
+  <circle cx="188" cy="188" r="52" fill="#0f141f"/>
+  <circle cx="188" cy="188" r="40" fill="none" stroke="#e8ecf4" stroke-width="16"/>
+  <line x1="216" y1="216" x2="252" y2="252" stroke="#e8ecf4" stroke-width="18" stroke-linecap="round"/>
+</svg>
