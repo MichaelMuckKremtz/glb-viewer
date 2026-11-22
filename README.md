@@ -9,8 +9,8 @@
 **📱 Scan with your phone to open it:**
 
 <p align="center">
-  <a href="https://michaelmuckkremtz.github.io/glb-viewer/" style="margin: 0 60px;"><img src="qr-viewer.png" width="180" alt="QR code: 3D Viewer"></a>
-  <a href="https://michaelmuckkremtz.github.io/glb-viewer/compress.html" style="margin: 0 60px;"><img src="qr-compress.png" width="180" alt="QR code: GLB Compressor"></a>
+  <a href="https://michaelmuckkremtz.github.io/glb-viewer/" style="margin: 0 48px;"><img src="qr-viewer.png" width="260" alt="QR code: 3D Viewer"></a>
+  <a href="https://michaelmuckkremtz.github.io/glb-viewer/compress.html" style="margin: 0 48px;"><img src="qr-compress.png" width="260" alt="QR code: GLB Compressor"></a>
 </p>
 
 <sub align="center"><b>3D Viewer</b> → <a href="https://michaelmuckkremtz.github.io/glb-viewer/">michaelmuckkremtz.github.io/glb-viewer/</a>&emsp;&emsp;&emsp;<b>GLB Compressor</b> → <a href="https://michaelmuckkremtz.github.io/glb-viewer/compress.html">…/glb-viewer/compress.html</a></sub>
