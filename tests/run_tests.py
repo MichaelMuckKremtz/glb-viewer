@@ -288,14 +288,18 @@ def m2(b, port):
     cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
     check('M2.13 pinch zooms (FOV narrows)', f1 < f0 - 5, f'fov {f0} -> {f1}')
 
-    # MODE button toggles walk/orbit
-    tm.pg.click('#t-mode')
-    tm.pg.wait_for_timeout(200)
-    m1 = tm.pg.evaluate('mode')
-    tm.pg.click('#t-mode')
-    tm.pg.wait_for_timeout(200)
-    m2 = tm.pg.evaluate('mode')
-    check('M2.15 MODE button toggles walk/orbit', m1 == 'orbit' and m2 == 'walk', f'{m1}, {m2}')
+    # WALK/ORBIT segmented switch: tapping a side activates it + highlights it
+    r1 = tm.pg.evaluate('''() => {
+        document.querySelector('#t-modes button:nth-child(2)').click();
+        return { m: mode, on: [...document.querySelectorAll('#t-modes button')].map(b => b.classList.contains('on')) };
+    }''')
+    r2 = tm.pg.evaluate('''() => {
+        document.querySelector('#t-modes button:nth-child(1)').click();
+        return { m: mode, on: [...document.querySelectorAll('#t-modes button')].map(b => b.classList.contains('on')) };
+    }''')
+    check('M2.15 WALK/ORBIT switch + highlight',
+          r1['m'] == 'orbit' and r1['on'] == [False, True] and r2['m'] == 'walk' and r2['on'] == [True, False],
+          f'{r1}, {r2}')
     # no touch UI on desktop
     d2 = T(b, port, url)
     d2.load_model('roomscan.glb'); d2.ready()

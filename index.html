@@ -4309,8 +4309,12 @@ if (IS_TOUCH && !window.__renderMode) {
     #t-jump { left: calc(50% - 42px); bottom: calc(70px + env(safe-area-inset-bottom)); width: 84px; height: 84px; border-radius: 50%; font-size: 13px; }
     #t-q { left: calc(50% - 60px); bottom: calc(210px + env(safe-area-inset-bottom)); width: 52px; height: 52px; border-radius: 50%; }
     #t-e { left: calc(50% + 8px); bottom: calc(210px + env(safe-area-inset-bottom)); width: 52px; height: 52px; border-radius: 50%; }
-    #t-run { left: 16px; top: calc(58px + env(safe-area-inset-top)); width: 58px; height: 40px; border-radius: 20px; font-size: 12px; }
-    #t-mode { left: 82px; top: calc(58px + env(safe-area-inset-top)); width: 74px; height: 40px; border-radius: 20px; font-size: 12px; }
+    #t-run { left: 16px; top: calc(106px + env(safe-area-inset-top)); width: 58px; height: 40px; border-radius: 20px; font-size: 12px; }
+    #t-modes { position: fixed; z-index: 30; left: 16px; top: calc(58px + env(safe-area-inset-top));
+      display: flex; border-radius: 20px; overflow: hidden; background: rgba(20,24,32,.55); touch-action: none; }
+    #t-modes button { border: none; background: transparent; color: #e8ecf4; font-size: 12px; font-weight: 600;
+      padding: 10px 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
+    #t-modes button.on { background: rgba(90,140,220,.8); }
     #t-menu { left: 16px; top: calc(12px + env(safe-area-inset-top)); }
     #t-shot { left: calc(50% + 76px); top: calc(12px + env(safe-area-inset-top)); }
   `;
@@ -4378,13 +4382,18 @@ if (IS_TOUCH && !window.__renderMode) {
   holdBtn('t-e', 'E', 'KeyE');
   const runBtn = holdBtn('t-run', 'RUN', null);
   runBtn.addEventListener('click', () => { touchRun = !touchRun; runBtn.classList.toggle('on', touchRun); });
-  const modeBtn = document.createElement('button'); modeBtn.id = 't-mode'; modeBtn.className = 't-btn';
-  modeBtn.textContent = mode === 'walk' ? 'ORBIT' : 'WALK';  // shows what tapping will switch to
-  document.body.appendChild(modeBtn);
-  modeBtn.addEventListener('click', () => {
-    setMode(mode === 'walk' ? 'orbit' : 'walk');
-    modeBtn.textContent = mode === 'walk' ? 'ORBIT' : 'WALK';
-  });
+  const modesEl = document.createElement('div'); modesEl.id = 't-modes';
+  const mWalk = document.createElement('button'); mWalk.textContent = 'WALK';
+  const mOrbit = document.createElement('button'); mOrbit.textContent = 'ORBIT';
+  modesEl.appendChild(mWalk); modesEl.appendChild(mOrbit);
+  document.body.appendChild(modesEl);
+  const syncModes = () => { mWalk.classList.toggle('on', mode === 'walk'); mOrbit.classList.toggle('on', mode === 'orbit'); };
+  mWalk.addEventListener('click', () => { setMode('walk'); syncModes(); });
+  mOrbit.addEventListener('click', () => { setMode('orbit'); syncModes(); });
+  // keep highlight in sync no matter how the mode changes (keyboard etc.)
+  const _setMode = setMode;
+  setMode = (m) => { _setMode(m); syncModes(); };
+  syncModes();
   const menuBtn = document.createElement('button'); menuBtn.id = 't-menu'; menuBtn.className = 't-btn'; menuBtn.textContent = 'MENU';
   document.body.appendChild(menuBtn);
   menuBtn.addEventListener('click', () => toggleMenu());
@@ -4410,12 +4419,14 @@ if (IS_TOUCH && !window.__renderMode) {
   const touchDist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType !== 'touch') return;
+    if (activeTouches >= 2) return;  // pinch in progress
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) { lookId = e.pointerId; lx = e.clientX; ly = e.clientY; }
     else lookId = null;  // 2+ fingers: pinch takes over
   });
   canvas.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'touch' || !pts.has(e.pointerId)) return;
+    if (activeTouches >= 2) { pts.delete(e.pointerId); lookId = null; return; }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1 && lookId === e.pointerId) {
       yaw   -= (e.clientX - lx) * 0.005;
@@ -4432,24 +4443,31 @@ if (IS_TOUCH && !window.__renderMode) {
     else lookId = null;
   };
   canvas.addEventListener('pointerup', pEnd); canvas.addEventListener('pointercancel', pEnd);
-  // pinch = zoom (Touch Events)
-  canvas.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2) {
+  // pinch = zoom — native Touch Events, listened at DOCUMENT level so it works
+  // wherever the two fingers land (canvas, HUD bar, ...), as long as neither
+  // starts on a control (stick / button / menu)
+  let activeTouches = 0;
+  const isUI = (t) => t && t.target && t.target.closest &&
+    (t.target.closest('.t-btn') || t.target.closest('#t-joy, #t-joy2') || t.target.closest('#t-modes') || t.target.closest('#menu') || t.target.closest('#coords'));
+  document.addEventListener('touchstart', (e) => {
+    activeTouches = e.touches.length;
+    if (e.touches.length === 2 && ![...e.touches].some(isUI)) {
       pinchDist = touchDist(e.touches);
       pinchStart = { mode: mode, fov: camera.fov, dist: orbit ? camera.position.distanceTo(orbit.target) : 0 };
     }
   }, { passive: true });
-  canvas.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2 && pinchStart) {
+  document.addEventListener('touchmove', (e) => {
+    activeTouches = e.touches.length;
+    if (e.touches.length >= 2 && pinchStart) {
       e.preventDefault();
       const d = touchDist(e.touches);
       if (pinchDist > 0) applyPinchZoom(Math.pow(pinchDist / d, 0.8));  // fingers apart -> zoom in
       pinchDist = d;
     }
   }, { passive: false });
-  const tPinchEnd = (e) => { if (e.touches.length < 2) { pinchDist = 0; pinchStart = null; } };
-  canvas.addEventListener('touchend', tPinchEnd);
-  canvas.addEventListener('touchcancel', tPinchEnd);
+  const tPinchEnd = (e) => { activeTouches = e.touches.length; if (e.touches.length < 2) { pinchDist = 0; pinchStart = null; } };
+  document.addEventListener('touchend', tPinchEnd);
+  document.addEventListener('touchcancel', tPinchEnd);
 }
 
 function setMode(m) {
@@ -4916,13 +4934,13 @@ function animate() {
   if (window.__modelReady) window.__readyFrames = (window.__readyFrames || 0) + 1;
 
   if (mode === 'walk') {
-    let ix = touchJoyX, iz = touchJoyY;
+    let ix = Math.abs(touchJoyX) > 0.06 ? touchJoyX : 0, iz = Math.abs(touchJoyY) > 0.06 ? touchJoyY : 0;  // deadband
     if (keys['KeyW'] || keys['ArrowUp'])    iz += 1;
     if (keys['KeyS'] || keys['ArrowDown'])  iz -= 1;
     if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
     if (keys['KeyA'] || keys['ArrowLeft'])  ix -= 1;
 
-    const speed = (keys['ShiftLeft'] || keys['ShiftRight'] || touchRun) ? 9 : 5;  // walk 5 m/s (2x), run 9 m/s
+    const speed = (keys['ShiftLeft'] || keys['ShiftRight'] || touchRun) ? 7 : 3.5;  // walk 3.5 m/s, run 7 m/s
     const l = Math.hypot(ix, iz);
     if (l > 0) {
       ix /= l; iz /= l;
