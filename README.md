@@ -80,6 +80,27 @@ git push -u origin main
 Then `https://<you>.github.io/glb-toolkit/` is your viewer. On the phone:
 open the page → **browse** for a `.glb` in your Files/Downloads.
 
+## Colophon — how this was built
+
+The entire codebase in this repo (and the 19 MB roomscan viewer it was
+derived from) was written by an AI coding agent, in one human-supervised
+session, with zero lines hand-typed.
+
+| | |
+|---|---|
+| **Agent harness** | `pi` coding agent v1.6.0 (terminal coding agent: file read / bash / edit / write tools, session-logged) |
+| **Model** | **Qwen 3.8 27B** — `unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M` (≈4-bit GGUF quant), served **locally** by Splash on the author's Mac — no cloud API, $0.00 inference cost |
+| **Reasoning** | medium thinking level — ≈ 211 k of the output tokens were internal reasoning |
+| **Session size** | 475 model calls · **≈ 787 k tokens total** (376 k in / 411 k out) |
+| **Wall time** | 6.5 h, human-in-the-loop (review, screenshots, approvals) with a 4K ProRes video encode running on the same machine |
+| **Throughput** | ≈ 18 output tok/s end-to-end average (human waits + local test runs included); single requests ranged from < 1 s to 7 min (the outlier hit CPU contention) |
+| **Verification** | Python 3.9 + Playwright headless Chromium (SwiftShader software GL) — 43 automated acceptance checks, all passing |
+
+Everything the model produced was gated by the test suite before it was
+considered done — including the compressor, which shipped broken four times
+(corrupted typed-array copy, chunk padding, …) and was only accepted when a
+round-trip render matched the original.
+
 ## Building (dev)
 
 `glbviewer/` in the parent checkout contains `build_viewer.py` /
