@@ -4391,20 +4391,28 @@ if (IS_TOUCH && !window.__renderMode) {
   const shotBtn = document.createElement('button'); shotBtn.id = 't-shot'; shotBtn.className = 't-btn'; shotBtn.textContent = 'SHOT';
   document.body.appendChild(shotBtn);
   shotBtn.addEventListener('click', () => saveScreenshot());
-  // look: one finger drag on canvas / pinch: zoom (FOV in walk, dolly in orbit)
+  // look: one-finger drag via pointer events; pinch zoom via TOUCH events
+  // (second-finger pointer events are flaky on iOS Safari; Touch Events are the
+  //  reliable multi-touch API there)
   let lookId = null, lx = 0, ly = 0;
   const pts = new Map();
   let pinchDist = 0, pinchStart = null;
+  const applyPinchZoom = (ratio) => {
+    if (pinchStart.mode === 'orbit' && orbit) {
+      camera.position.sub(orbit.target)
+        .setLength(THREE.MathUtils.clamp(pinchStart.dist * ratio, 0.3, 80))
+        .add(orbit.target);
+    } else {
+      camera.fov = THREE.MathUtils.clamp(pinchStart.fov * ratio, 25, 95);
+      camera.updateProjectionMatrix();
+    }
+  };
+  const touchDist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType !== 'touch') return;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) { lookId = e.pointerId; lx = e.clientX; ly = e.clientY; }
-    else if (pts.size === 2) {
-      lookId = null;
-      const a = [...pts.values()];
-      pinchDist = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
-      pinchStart = { mode: mode, fov: camera.fov, dist: orbit ? camera.position.distanceTo(orbit.target) : 0 };
-    }
+    else lookId = null;  // 2+ fingers: pinch takes over
   });
   canvas.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'touch' || !pts.has(e.pointerId)) return;
@@ -4415,31 +4423,33 @@ if (IS_TOUCH && !window.__renderMode) {
       const lim = Math.PI / 2 - 0.05;
       pitch = Math.max(-lim, Math.min(lim, pitch));
       lx = e.clientX; ly = e.clientY;
-    } else if (pts.size === 2) {
-      const a = [...pts.values()];
-      const d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
-      if (pinchDist > 0 && pinchStart) {
-        const ratio = Math.pow(pinchDist / d, 0.8);  // fingers apart -> zoom in
-        if (pinchStart.mode === 'orbit' && orbit) {
-          camera.position.sub(orbit.target)
-            .setLength(THREE.MathUtils.clamp(pinchStart.dist * ratio, 0.3, 80))
-            .add(orbit.target);
-        } else {
-          camera.fov = THREE.MathUtils.clamp(pinchStart.fov * ratio, 25, 95);
-          camera.updateProjectionMatrix();
-        }
-      }
-      pinchDist = d;
     }
   });
   const pEnd = (e) => {
     if (e.pointerType !== 'touch') return;
     pts.delete(e.pointerId);
-    if (pts.size < 2) { pinchDist = 0; pinchStart = null; }
     if (pts.size === 1) { const [id, p] = [...pts.entries()][0]; lookId = id; lx = p.x; ly = p.y; }
     else lookId = null;
   };
   canvas.addEventListener('pointerup', pEnd); canvas.addEventListener('pointercancel', pEnd);
+  // pinch = zoom (Touch Events)
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      pinchDist = touchDist(e.touches);
+      pinchStart = { mode: mode, fov: camera.fov, dist: orbit ? camera.position.distanceTo(orbit.target) : 0 };
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && pinchStart) {
+      e.preventDefault();
+      const d = touchDist(e.touches);
+      if (pinchDist > 0) applyPinchZoom(Math.pow(pinchDist / d, 0.8));  // fingers apart -> zoom in
+      pinchDist = d;
+    }
+  }, { passive: false });
+  const tPinchEnd = (e) => { if (e.touches.length < 2) { pinchDist = 0; pinchStart = null; } };
+  canvas.addEventListener('touchend', tPinchEnd);
+  canvas.addEventListener('touchcancel', tPinchEnd);
 }
 
 function setMode(m) {
@@ -4912,7 +4922,7 @@ function animate() {
     if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
     if (keys['KeyA'] || keys['ArrowLeft'])  ix -= 1;
 
-    const speed = (keys['ShiftLeft'] || keys['ShiftRight'] || touchRun) ? 6 : 2.5;
+    const speed = (keys['ShiftLeft'] || keys['ShiftRight'] || touchRun) ? 9 : 5;  // walk 5 m/s (2x), run 9 m/s
     const l = Math.hypot(ix, iz);
     if (l > 0) {
       ix /= l; iz /= l;
@@ -4922,10 +4932,12 @@ function animate() {
       pos.addScaledVector(right, ix * speed * dt);
     }
 
-    // Right look stick (touch): analog yaw/pitch
-    if (touchLookX || touchLookY) {
-      yaw   -= touchLookX * 2.6 * dt;
-      pitch += touchLookY * 2.6 * dt;
+    // Right look stick (touch): analog yaw/pitch (calibrated: 1.5 rad/s + dead zone)
+    if (Math.abs(touchLookX) > 0.06 || Math.abs(touchLookY) > 0.06) {
+      const lx = Math.abs(touchLookX) > 0.06 ? touchLookX : 0;
+      const ly = Math.abs(touchLookY) > 0.06 ? touchLookY : 0;
+      yaw   -= lx * 1.5 * dt;
+      pitch += ly * 1.5 * dt;
       const lim = Math.PI / 2 - 0.05;
       pitch = Math.max(-lim, Math.min(lim, pitch));
     }

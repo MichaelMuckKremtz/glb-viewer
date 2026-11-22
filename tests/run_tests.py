@@ -275,21 +275,17 @@ def m2(b, port):
     }''')
     check('M2.12 right stick looks (yaw changes)', abs(y1 - y0) > 0.08, f'yaw {y0:.2f} -> {y1:.2f}')
 
-    # pinch = zoom (FOV in walk mode)
+    # pinch = zoom (FOV in walk mode) — REAL touch events via CDP, like iPhone
+    tm.pg.evaluate("started = true; document.getElementById('overlay').style.display = 'none';")
     f0 = tm.pg.evaluate('camera.fov')
-    tm.pg.evaluate('''() => {
-        const c = document.querySelector('canvas');
-        const mk = (id, x, y, type) => c.dispatchEvent(new PointerEvent(type, {pointerId: id, pointerType: 'touch', clientX: x, clientY: y, bubbles: true}));
-        mk(71, 100, 400, 'pointerdown'); mk(72, 200, 400, 'pointerdown');
-        mk(71, 60, 400, 'pointermove'); mk(72, 240, 400, 'pointermove');
-    }''')
-    tm.pg.wait_for_timeout(150)
+    cdp = tm.pg.context.new_cdp_session(tm.pg)
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart',
+            'touchPoints': [{'x': 100, 'y': 400}, {'x': 200, 'y': 400}]})
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove',
+            'touchPoints': [{'x': 60, 'y': 400}, {'x': 240, 'y': 400}]})
+    tm.pg.wait_for_timeout(200)
     f1 = tm.pg.evaluate('camera.fov')
-    tm.pg.evaluate('''() => {
-        const c = document.querySelector('canvas');
-        const mk = (id, x, y, type) => c.dispatchEvent(new PointerEvent(type, {pointerId: id, pointerType: 'touch', clientX: x, clientY: y, bubbles: true}));
-        mk(71, 60, 400, 'pointerup'); mk(72, 240, 400, 'pointerup');
-    }''')
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
     check('M2.13 pinch zooms (FOV narrows)', f1 < f0 - 5, f'fov {f0} -> {f1}')
 
     # MODE button toggles walk/orbit
