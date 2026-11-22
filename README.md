@@ -6,8 +6,16 @@
 
 ## 🌐 Open now — no install, no login
 
-- **3D Viewer** → https://michaelmuckkremtz.github.io/glb-viewer/
-- **GLB Compressor** → https://michaelmuckkremtz.github.io/glb-viewer/compress.html
+**📱 Scan with your phone to open it:**
+
+<p align="center">
+  <a href="https://michaelmuckkremtz.github.io/glb-viewer/"><img src="qr-viewer.png" width="160" alt="QR code: 3D Viewer"></a>
+  <a href="https://michaelmuckkremtz.github.io/glb-viewer/compress.html"><img src="qr-compress.png" width="160" alt="QR code: GLB Compressor"></a>
+</p>
+
+| | |
+|---|---|
+| **3D Viewer** → https://michaelmuckkremtz.github.io/glb-viewer/ | **GLB Compressor** → https://michaelmuckkremtz.github.io/glb-viewer/compress.html |
 
 <sub>On a phone: open the viewer, tap **browse**, pick a `.glb` from Files. Share → *Add to Home Screen* makes it an app.</sub>
 
