@@ -291,6 +291,15 @@ def m2(b, port):
         mk(71, 60, 400, 'pointerup'); mk(72, 240, 400, 'pointerup');
     }''')
     check('M2.13 pinch zooms (FOV narrows)', f1 < f0 - 5, f'fov {f0} -> {f1}')
+
+    # MODE button toggles walk/orbit
+    tm.pg.click('#t-mode')
+    tm.pg.wait_for_timeout(200)
+    m1 = tm.pg.evaluate('mode')
+    tm.pg.click('#t-mode')
+    tm.pg.wait_for_timeout(200)
+    m2 = tm.pg.evaluate('mode')
+    check('M2.15 MODE button toggles walk/orbit', m1 == 'orbit' and m2 == 'walk', f'{m1}, {m2}')
     # no touch UI on desktop
     d2 = T(b, port, url)
     d2.load_model('roomscan.glb'); d2.ready()

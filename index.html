@@ -4310,6 +4310,7 @@ if (IS_TOUCH && !window.__renderMode) {
     #t-q { left: calc(50% - 60px); bottom: calc(210px + env(safe-area-inset-bottom)); width: 52px; height: 52px; border-radius: 50%; }
     #t-e { left: calc(50% + 8px); bottom: calc(210px + env(safe-area-inset-bottom)); width: 52px; height: 52px; border-radius: 50%; }
     #t-run { left: 16px; top: calc(58px + env(safe-area-inset-top)); width: 58px; height: 40px; border-radius: 20px; font-size: 12px; }
+    #t-mode { left: 82px; top: calc(58px + env(safe-area-inset-top)); width: 74px; height: 40px; border-radius: 20px; font-size: 12px; }
     #t-menu { left: 16px; top: calc(12px + env(safe-area-inset-top)); }
     #t-shot { left: calc(50% + 76px); top: calc(12px + env(safe-area-inset-top)); }
   `;
@@ -4377,6 +4378,13 @@ if (IS_TOUCH && !window.__renderMode) {
   holdBtn('t-e', 'E', 'KeyE');
   const runBtn = holdBtn('t-run', 'RUN', null);
   runBtn.addEventListener('click', () => { touchRun = !touchRun; runBtn.classList.toggle('on', touchRun); });
+  const modeBtn = document.createElement('button'); modeBtn.id = 't-mode'; modeBtn.className = 't-btn';
+  modeBtn.textContent = mode === 'walk' ? 'ORBIT' : 'WALK';  // shows what tapping will switch to
+  document.body.appendChild(modeBtn);
+  modeBtn.addEventListener('click', () => {
+    setMode(mode === 'walk' ? 'orbit' : 'walk');
+    modeBtn.textContent = mode === 'walk' ? 'ORBIT' : 'WALK';
+  });
   const menuBtn = document.createElement('button'); menuBtn.id = 't-menu'; menuBtn.className = 't-btn'; menuBtn.textContent = 'MENU';
   document.body.appendChild(menuBtn);
   menuBtn.addEventListener('click', () => toggleMenu());
@@ -4947,7 +4955,7 @@ function animate() {
       : 'WASD move \u00b7 Shift run \u00b7 Space jump \u00b7 Q/E down/up \u00b7 L grading \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '% \u00b7 F shot \u00b7 P pose \u00b7 2 = orbit' + (pointerLocked ? '' : ' \u00b7 drag to look / click to capture mouse');
   } else {
     if (orbit) orbit.update();
-    hud.textContent = 'Orbit mode (drag to rotate, scroll to zoom) \u00b7 1 = walk \u00b7 L grading \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '%';
+    hud.textContent = 'Orbit mode (drag to rotate, two-finger to zoom) \u00b7 ' + (IS_TOUCH ? 'MODE = walk' : '1 = walk') + ' \u00b7 L grading \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '%';
   }
 
   // Real-time coordinates for view recreation
