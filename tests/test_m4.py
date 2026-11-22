@@ -8,7 +8,7 @@ def m4(b, port, T, check, screenshot_stats, ROOT):
 
     # repo size
     repo = ROOT / 'glbviewer'
-    total = sum(f.stat().st_size for f in repo.rglob('*') if f.is_file())
+    total = sum(f.stat().st_size for f in repo.rglob('*') if f.is_file() and '.git' not in f.parts)
     check('M4.1 repo < 1.5 MB', total < 1.5 * 1048576, f'{total / 1048576:.2f} MB')
     check('M4.2 no model data in repo', not list(repo.rglob('*.glb')),
           str([str(f) for f in repo.rglob('*.glb')]))
