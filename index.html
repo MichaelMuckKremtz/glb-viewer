@@ -3987,12 +3987,21 @@ THREE.OrbitControls = (function(){
       this._sph = sph;
       this._rotSpeed = 0.005; this._panSpeed = 0.0015;
       let drag = 0; // 1=rotate, 2=pan
-      const onDown = (e) => { if (!this.enabled) return; drag = (e.button === 2) ? 2 : 1; dom.setPointerCapture && dom.setPointerCapture(e.pointerId); };
+      let lastX = 0, lastY = 0, hasLast = false;
+      const onDown = (e) => {
+        if (!this.enabled) return;
+        drag = (e.button === 2) ? 2 : 1;
+        lastX = e.clientX; lastY = e.clientY; hasLast = true;
+        dom.setPointerCapture && dom.setPointerCapture(e.pointerId);
+      };
       const onMove = (e) => {
-        if (!this.enabled || !drag) return;
+        if (!this.enabled || !drag || !hasLast) return;
+        // client-coord deltas: e.movementX is unreliable for touch pointers on iOS
+        const dx = e.clientX - lastX, dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
         if (drag === 1) {
-          this._sph.theta -= e.movementX * this._rotSpeed;
-          this._sph.phi   -= e.movementY * this._rotSpeed;
+          this._sph.theta -= dx * this._rotSpeed;
+          this._sph.phi   -= dy * this._rotSpeed;
           const lim = 0.01;
           this._sph.phi = Math.max(lim, Math.min(Math.PI - lim, this._sph.phi));
         } else {
@@ -4000,11 +4009,11 @@ THREE.OrbitControls = (function(){
           const perX = 2 * dist * Math.tan(this.object.fov * Math.PI / 360) / dom.clientHeight;
           const te = new THREE.Vector3().setFromMatrixColumn(this.object.matrix, 0);
           const up = new THREE.Vector3().setFromMatrixColumn(this.object.matrix, 1);
-          this.target.addScaledVector(te, -e.movementX * perX * this._panSpeed * dist / 2);
-          this.target.addScaledVector(up,  e.movementY * perX * this._panSpeed * dist / 2);
+          this.target.addScaledVector(te, -dx * perX * this._panSpeed * dist / 2);
+          this.target.addScaledVector(up,  dy * perX * this._panSpeed * dist / 2);
         }
       };
-      const onUp = () => { drag = 0; };
+      const onUp = (e) => { drag = 0; hasLast = false; };
       const onWheel = (e) => {
         if (!this.enabled) return;
         e.preventDefault();
@@ -4283,44 +4292,57 @@ window.__resetKeys = () => { for (const k in keys) keys[k] = false; };  // test 
 
 // ---------- Mobile touch UI (touch devices only) ----------
 const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-let touchRun = false, touchJoyX = 0, touchJoyY = 0, touchLookX = 0, touchLookY = 0;
+let touchRun = false, touchJoyX = 0, touchJoyY = 0;
 if (IS_TOUCH && !window.__renderMode) {
+  document.body.classList.add('touchui');
   // touch-friendly overlay text
   const op = overlay.querySelector('p');
-  if (op) op.innerHTML = 'Tap to start.<br/>Left stick = walk \u00b7 right stick = look \u00b7 pinch = zoom \u00b7 drag = look.<br/>Buttons: JUMP \u00b7 Q down \u00b7 E up \u00b7 RUN \u00b7 MENU (grading + brightness) \u00b7 SHOT';
+  if (op) op.innerHTML = 'Tap to start.<br/>ORBIT (default): drag to rotate \u00b7 ZOOM slider to zoom.<br/>WALK: drag to look \u00b7 stick to move \u00b7 JUMP \u00b7 RUN.';
   const st = document.createElement('style');
   st.textContent = `
     html, body { position: fixed; inset: 0; overscroll-behavior: none; touch-action: none; }
     #app { touch-action: none; }
-    .t-btn { position: fixed; z-index: 30; border: none; border-radius: 14px; padding: 12px 14px;
-      background: rgba(20,24,32,.55); color: #e8ecf4; font-size: 14px; font-weight: 600;
-      touch-action: none; user-select: none; -webkit-user-select: none; }
-    .t-btn:active, .t-btn.on { background: rgba(90,140,220,.8); }
+    body.touchui { font-family: -apple-system, 'Helvetica Neue', sans-serif; }
+    body.touchui .t-btn { position: fixed; z-index: 30; border: 1px solid rgba(255,210,150,.22); border-radius: 20px; padding: 10px 14px;
+      background: rgba(38,28,20,.62); color: #f2e7d5; font-size: 13px; font-weight: 600; backdrop-filter: blur(10px);
+      touch-action: none; user-select: none; -webkit-user-select: none; box-shadow: 0 6px 22px rgba(0,0,0,.35); }
+    body.touchui .t-btn:active, body.touchui .t-btn.on { background: #d98e4f; color: #2a1f14; }
+    body.touchui .walk-only { display: none; }
+    body.touchui.walk .walk-only { display: flex; }
+    body.touchui.walk #t-joy { display: block; }
     #t-joy { position: fixed; z-index: 30; left: 18px; bottom: calc(64px + env(safe-area-inset-bottom));
       width: 128px; height: 128px; border-radius: 50%;
-      background: rgba(20,24,32,.45); border: 2px solid rgba(255,255,255,.25); touch-action: none; }
-    #t-joy2 { position: fixed; z-index: 30; right: 18px; bottom: calc(64px + env(safe-area-inset-bottom));
-      width: 128px; height: 128px; border-radius: 50%;
-      background: rgba(20,24,32,.45); border: 2px solid rgba(255,255,255,.25); touch-action: none; }
+      background: rgba(38,28,20,.45); border: 2px solid rgba(255,210,150,.3); touch-action: none; }
     #t-knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
-      border-radius: 50%; background: rgba(255,255,255,.5); border: 2px solid #fff; }
-    #t-knob2 { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
-      border-radius: 50%; background: rgba(255,255,255,.5); border: 2px solid #fff; }
-    #t-jump { left: calc(50% - 42px); bottom: calc(70px + env(safe-area-inset-bottom)); width: 84px; height: 84px; border-radius: 50%; font-size: 13px; }
-    #t-q { left: calc(50% - 60px); bottom: calc(210px + env(safe-area-inset-bottom)); width: 52px; height: 52px; border-radius: 50%; }
-    #t-e { left: calc(50% + 8px); bottom: calc(210px + env(safe-area-inset-bottom)); width: 52px; height: 52px; border-radius: 50%; }
-    #t-run { left: 16px; top: calc(106px + env(safe-area-inset-top)); width: 58px; height: 40px; border-radius: 20px; font-size: 12px; }
-    #t-modes { position: fixed; z-index: 30; left: 16px; top: calc(58px + env(safe-area-inset-top));
-      display: flex; border-radius: 20px; overflow: hidden; background: rgba(20,24,32,.55); touch-action: none; }
-    #t-modes button { border: none; background: transparent; color: #e8ecf4; font-size: 12px; font-weight: 600;
-      padding: 10px 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
-    #t-modes button.on { background: rgba(90,140,220,.8); }
-    #t-menu { left: 16px; top: calc(12px + env(safe-area-inset-top)); }
-    #t-shot { left: calc(50% + 76px); top: calc(12px + env(safe-area-inset-top)); }
+      border-radius: 50%; background: rgba(247,234,214,.75); border: 2px solid #f7ead6; }
+    #t-jump { right: 100px; bottom: calc(56px + env(safe-area-inset-bottom)); width: 64px; height: 64px; border-radius: 50%; font-size: 12px; padding: 0; }
+    #t-run { right: 18px; bottom: calc(56px + env(safe-area-inset-bottom)); width: 76px; height: 64px; border-radius: 32px; font-size: 12px; padding: 0; }
+    #t-modes { position: fixed; z-index: 30; left: 16px; top: calc(12px + env(safe-area-inset-top));
+      display: flex; border-radius: 20px; overflow: hidden; background: rgba(38,28,20,.62);
+      border: 1px solid rgba(255,210,150,.22); backdrop-filter: blur(10px); touch-action: none; box-shadow: 0 6px 22px rgba(0,0,0,.35); }
+    #t-modes button { border: none; background: transparent; color: #b9a689; font-size: 13px; font-weight: 600;
+      padding: 10px 14px; touch-action: none; user-select: none; -webkit-user-select: none; }
+    #t-modes button.on { background: #d98e4f; color: #2a1f14; }
+    #t-menu { right: 104px; top: calc(12px + env(safe-area-inset-top)); }
+    #t-shot { right: 16px; top: calc(12px + env(safe-area-inset-top)); }
+    #t-zoomrow { position: fixed; z-index: 30; box-sizing: border-box; left: 50%; transform: translateX(-50%); bottom: calc(56px + env(safe-area-inset-bottom));
+      width: 250px; display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      background: rgba(38,28,20,.62); border: 1px solid rgba(255,210,150,.22); border-radius: 28px; backdrop-filter: blur(10px); box-shadow: 0 6px 22px rgba(0,0,0,.35); }
+    body.touchui.walk #t-zoomrow { left: 50%; bottom: auto; top: calc(64px + env(safe-area-inset-top)); width: 220px; }  /* top-center: clear of stick + JUMP/RUN */
+    body.touchui .t-btn { box-sizing: border-box; }
+    #t-zoomrow .lbl { font-size: 10px; letter-spacing: 1px; font-weight: 700; color: #f2e7d5; opacity: .8; }
+    #t-zoom { flex: 1; -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; background: rgba(255,210,150,.3); }
+    #t-zoom::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%;
+      background: #d98e4f; border: 2px solid #f7ead6; }
+    body.touchui #hud { display: none !important; }  /* hint bar redundant on touch — #coords already shows mode + lighting */
+    body.touchui #coords { color: #d8c6a8; background: rgba(38,28,20,.45);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }  /* keep to one line */
+    body.touchui #overlay { background: rgba(24,18,12,.82); }
+    body.touchui #overlay p { color: #f2e7d5; }
   `;
   document.head.appendChild(st);
-  // joystick (bottom-left)
-  const joy = document.createElement('div'); joy.id = 't-joy';
+  // walk stick (bottom-left, walk mode only)
+  const joy = document.createElement('div'); joy.id = 't-joy'; joy.className = 'walk-only';
   const knob = document.createElement('div'); knob.id = 't-knob'; joy.appendChild(knob);
   document.body.appendChild(joy);
   let joyId = null;
@@ -4343,32 +4365,9 @@ if (IS_TOUCH && !window.__renderMode) {
   joy.addEventListener('pointermove', (e) => { if (e.pointerId === joyId) joyMove(e); });
   const joyEnd = (e) => { if (e.pointerId !== joyId) return; joyId = null; touchJoyX = 0; touchJoyY = 0; knob.style.transform = ''; };
   joy.addEventListener('pointerup', joyEnd); joy.addEventListener('pointercancel', joyEnd);
-  // look stick (bottom-right) — analog yaw/pitch
-  const joy2 = document.createElement('div'); joy2.id = 't-joy2';
-  const knob2 = document.createElement('div'); knob2.id = 't-knob2'; joy2.appendChild(knob2);
-  document.body.appendChild(joy2);
-  let joy2Id = null;
-  const joy2Move = (e) => {
-    let dx = e.clientX - joy2.dataset.cx, dy = e.clientY - joy2.dataset.cy;
-    const d = Math.hypot(dx, dy);
-    if (d > JOY_R) { dx *= JOY_R / d; dy *= JOY_R / d; }
-    knob2.style.transform = `translate(${dx}px, ${dy}px)`;
-    touchLookX = dx / JOY_R; touchLookY = -dy / JOY_R;
-  };
-  joy2.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    joy2Id = e.pointerId;
-    try { joy2.setPointerCapture(joy2Id); } catch (err) {}
-    const r = joy2.getBoundingClientRect();
-    joy2.dataset.cx = r.left + r.width / 2; joy2.dataset.cy = r.top + r.height / 2;
-    joy2Move(e);
-  });
-  joy2.addEventListener('pointermove', (e) => { if (e.pointerId === joy2Id) joy2Move(e); });
-  const joy2End = (e) => { if (e.pointerId !== joy2Id) return; joy2Id = null; touchLookX = 0; touchLookY = 0; knob2.style.transform = ''; };
-  joy2.addEventListener('pointerup', joy2End); joy2.addEventListener('pointercancel', joy2End);
   // press-and-hold button mapped to a virtual key
-  const holdBtn = (id, label, key) => {
-    const b = document.createElement('button'); b.id = id; b.className = 't-btn'; b.textContent = label;
+  const holdBtn = (id, label, key, extraClass) => {
+    const b = document.createElement('button'); b.id = id; b.className = 't-btn' + (extraClass ? ' ' + extraClass : ''); b.textContent = label;
     document.body.appendChild(b);
     const down = (e) => { e.preventDefault(); if (key) keys[key] = true; b.classList.add('on'); };
     const up = (e) => { e.preventDefault(); if (key) keys[key] = false; b.classList.remove('on'); };
@@ -4377,20 +4376,46 @@ if (IS_TOUCH && !window.__renderMode) {
     b.addEventListener('contextmenu', (e) => e.preventDefault());
     return b;
   };
-  holdBtn('t-jump', 'JUMP', 'Space');
-  holdBtn('t-q', 'Q', 'KeyQ');
-  holdBtn('t-e', 'E', 'KeyE');
-  const runBtn = holdBtn('t-run', 'RUN', null);
+  holdBtn('t-jump', 'JUMP', 'Space', 'walk-only');
+  const runBtn = holdBtn('t-run', 'RUN', null, 'walk-only');
   runBtn.addEventListener('click', () => { touchRun = !touchRun; runBtn.classList.toggle('on', touchRun); });
+  // ZOOM slider (orbit: camera distance · walk: FOV)
+  const zoomrow = document.createElement('div'); zoomrow.id = 't-zoomrow';
+  const zlbl = document.createElement('span'); zlbl.className = 'lbl'; zlbl.textContent = 'ZOOM';
+  const zoom = document.createElement('input'); zoom.id = 't-zoom'; zoom.type = 'range'; zoom.min = 0; zoom.max = 100; zoom.value = 62;
+  zoomrow.appendChild(zlbl); zoomrow.appendChild(zoom);
+  document.body.appendChild(zoomrow);
+  const syncZoom = () => {
+    if (mode === 'orbit' && orbit && orbit._sph) {
+      zoom.value = Math.round(100 * Math.log(Math.max(orbit._sph.radius, 0.5) / 0.5) / Math.log(80));
+    } else {
+      zoom.value = Math.round(100 * (95 - camera.fov) / 70);
+    }
+  };
+  zoom.addEventListener('input', () => {
+    const v = parseFloat(zoom.value);
+    if (mode === 'orbit' && orbit && orbit._sph) {
+      orbit._sph.radius = THREE.MathUtils.clamp(0.5 * Math.pow(80, v / 100), 0.5, 40);
+    } else {
+      camera.fov = THREE.MathUtils.clamp(95 - (v / 100) * 70, 25, 95);
+      camera.updateProjectionMatrix();
+    }
+  });
+  // WALK | ORBIT segmented switch
   const modesEl = document.createElement('div'); modesEl.id = 't-modes';
   const mWalk = document.createElement('button'); mWalk.textContent = 'WALK';
   const mOrbit = document.createElement('button'); mOrbit.textContent = 'ORBIT';
   modesEl.appendChild(mWalk); modesEl.appendChild(mOrbit);
   document.body.appendChild(modesEl);
-  const syncModes = () => { mWalk.classList.toggle('on', mode === 'walk'); mOrbit.classList.toggle('on', mode === 'orbit'); };
-  mWalk.addEventListener('click', () => { setMode('walk'); syncModes(); });
-  mOrbit.addEventListener('click', () => { setMode('orbit'); syncModes(); });
-  // keep highlight in sync no matter how the mode changes (keyboard etc.)
+  const syncModes = () => {
+    mWalk.classList.toggle('on', mode === 'walk');
+    mOrbit.classList.toggle('on', mode === 'orbit');
+    document.body.classList.toggle('walk', mode === 'walk');
+    syncZoom();
+  };
+  mWalk.addEventListener('click', () => { setMode('walk'); });
+  mOrbit.addEventListener('click', () => { setMode('orbit'); });
+  // keep highlight + slider in sync no matter how the mode changes
   const _setMode = setMode;
   setMode = (m) => { _setMode(m); syncModes(); };
   syncModes();
@@ -4400,33 +4425,16 @@ if (IS_TOUCH && !window.__renderMode) {
   const shotBtn = document.createElement('button'); shotBtn.id = 't-shot'; shotBtn.className = 't-btn'; shotBtn.textContent = 'SHOT';
   document.body.appendChild(shotBtn);
   shotBtn.addEventListener('click', () => saveScreenshot());
-  // look: one-finger drag via pointer events; pinch zoom via TOUCH events
-  // (second-finger pointer events are flaky on iOS Safari; Touch Events are the
-  //  reliable multi-touch API there)
+  // one-finger look drag (walk mode only; orbit rotation is OrbitControls')
   let lookId = null, lx = 0, ly = 0;
   const pts = new Map();
-  let pinchDist = 0, pinchStart = null;
-  const applyPinchZoom = (ratio) => {
-    if (pinchStart.mode === 'orbit' && orbit) {
-      camera.position.sub(orbit.target)
-        .setLength(THREE.MathUtils.clamp(pinchStart.dist * ratio, 0.3, 80))
-        .add(orbit.target);
-    } else {
-      camera.fov = THREE.MathUtils.clamp(pinchStart.fov * ratio, 25, 95);
-      camera.updateProjectionMatrix();
-    }
-  };
-  const touchDist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
   canvas.addEventListener('pointerdown', (e) => {
-    if (e.pointerType !== 'touch') return;
-    if (activeTouches >= 2) return;  // pinch in progress
+    if (e.pointerType !== 'touch' || mode !== 'walk') return;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) { lookId = e.pointerId; lx = e.clientX; ly = e.clientY; }
-    else lookId = null;  // 2+ fingers: pinch takes over
   });
   canvas.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'touch' || !pts.has(e.pointerId)) return;
-    if (activeTouches >= 2) { pts.delete(e.pointerId); lookId = null; return; }
+    if (e.pointerType !== 'touch' || mode !== 'walk' || !pts.has(e.pointerId)) return;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1 && lookId === e.pointerId) {
       yaw   -= (e.clientX - lx) * 0.005;
@@ -4443,31 +4451,17 @@ if (IS_TOUCH && !window.__renderMode) {
     else lookId = null;
   };
   canvas.addEventListener('pointerup', pEnd); canvas.addEventListener('pointercancel', pEnd);
-  // pinch = zoom — native Touch Events, listened at DOCUMENT level so it works
-  // wherever the two fingers land (canvas, HUD bar, ...), as long as neither
-  // starts on a control (stick / button / menu)
-  let activeTouches = 0;
-  const isUI = (t) => t && t.target && t.target.closest &&
-    (t.target.closest('.t-btn') || t.target.closest('#t-joy, #t-joy2') || t.target.closest('#t-modes') || t.target.closest('#menu') || t.target.closest('#coords'));
-  document.addEventListener('touchstart', (e) => {
-    activeTouches = e.touches.length;
-    if (e.touches.length === 2 && ![...e.touches].some(isUI)) {
-      pinchDist = touchDist(e.touches);
-      pinchStart = { mode: mode, fov: camera.fov, dist: orbit ? camera.position.distanceTo(orbit.target) : 0 };
+  // boot: mobile standard is ORBIT — wait for the model, then switch (and give
+  // the orbit a sensible target: 2.5 m in front of where the eye is looking)
+  const bootOrbit = () => {
+    if (!window.__modelReady) { setTimeout(bootOrbit, 50); return; }
+    if (mode !== 'orbit') setMode('orbit');
+    if (orbit && camera.position.distanceTo(orbit.target) < 0.5) {
+      const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+      orbit.target.copy(pos).addScaledVector(dir, 2.5);
     }
-  }, { passive: true });
-  document.addEventListener('touchmove', (e) => {
-    activeTouches = e.touches.length;
-    if (e.touches.length >= 2 && pinchStart) {
-      e.preventDefault();
-      const d = touchDist(e.touches);
-      if (pinchDist > 0) applyPinchZoom(Math.pow(pinchDist / d, 0.8));  // fingers apart -> zoom in
-      pinchDist = d;
-    }
-  }, { passive: false });
-  const tPinchEnd = (e) => { activeTouches = e.touches.length; if (e.touches.length < 2) { pinchDist = 0; pinchStart = null; } };
-  document.addEventListener('touchend', tPinchEnd);
-  document.addEventListener('touchcancel', tPinchEnd);
+  };
+  setTimeout(bootOrbit, 150);
 }
 
 function setMode(m) {
@@ -4489,7 +4483,9 @@ function setMode(m) {
     pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
     pos.copy(camera.position);
     velY = 0;
-    canvas.requestPointerLock();
+    if (!IS_TOUCH) {
+      try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (err) {}
+    }
   }
 }
 
@@ -4950,42 +4946,23 @@ function animate() {
       pos.addScaledVector(right, ix * speed * dt);
     }
 
-    // Right look stick (touch): analog yaw/pitch (calibrated: 1.5 rad/s + dead zone)
-    if (Math.abs(touchLookX) > 0.06 || Math.abs(touchLookY) > 0.06) {
-      const lx = Math.abs(touchLookX) > 0.06 ? touchLookX : 0;
-      const ly = Math.abs(touchLookY) > 0.06 ? touchLookY : 0;
-      yaw   -= lx * 1.5 * dt;
-      pitch += ly * 1.5 * dt;
-      const lim = Math.PI / 2 - 0.05;
-      pitch = Math.max(-lim, Math.min(lim, pitch));
-    }
-
-    // Jump with gravity (Space) + optional free-descend (C)
+    // Jump with gravity (Space) — Q/E vertical climb removed (v3: felt like a stuck jump)
     const FLOOR = FLOOR_Y + EYE, GRAV = 22, JUMP_V = 7.5;
-    // E/Q ascend/descend override gravity while held; otherwise jump + gravity
-    const eUp = keys['KeyE'], eDn = keys['ControlLeft'] || keys['KeyC'] || keys['KeyQ'];
-    if (eUp || eDn) {
-      pos.y += (eUp ? 3 : -3) * dt;
-      if (pos.y < FLOOR) pos.y = FLOOR;
-      if (pos.y > FLOOR + 3.0) pos.y = FLOOR + 3.0;
-      velY = 0;
-    } else {
-      if (keys['Space'] && pos.y <= FLOOR + 0.05 && velY >= 0) velY = JUMP_V;
-      velY -= GRAV * dt;
-      pos.y += velY * dt;
-      if (pos.y < FLOOR) { pos.y = FLOOR; velY = 0; }
-    }
+    if (keys['Space'] && pos.y <= FLOOR + 0.05 && velY >= 0) velY = JUMP_V;
+    velY -= GRAV * dt;
+    pos.y += velY * dt;
+    if (pos.y < FLOOR) { pos.y = FLOOR; velY = 0; }
 
     camera.position.set(pos.x, pos.y, pos.z);
     camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
     fill.position.copy(camera.position);
 
     hud.textContent = IS_TOUCH
-      ? 'L stick = walk \u00b7 R stick = look \u00b7 pinch = zoom \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '%'
-      : 'WASD move \u00b7 Shift run \u00b7 Space jump \u00b7 Q/E down/up \u00b7 L grading \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '% \u00b7 F shot \u00b7 P pose \u00b7 2 = orbit' + (pointerLocked ? '' : ' \u00b7 drag to look / click to capture mouse');
+      ? 'stick = move \u00b7 drag = look \u00b7 ZOOM slider = zoom \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '%'
+      : 'WASD move \u00b7 Shift run \u00b7 Space jump \u00b7 L grading \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '% \u00b7 F shot \u00b7 P pose \u00b7 2 = orbit' + (pointerLocked ? '' : ' \u00b7 drag to look / click to capture mouse');
   } else {
     if (orbit) orbit.update();
-    hud.textContent = 'Orbit mode (drag to rotate, two-finger to zoom) \u00b7 ' + (IS_TOUCH ? 'MODE = walk' : '1 = walk') + ' \u00b7 L grading \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '%';
+    hud.textContent = (IS_TOUCH ? 'Orbit: drag to rotate \u00b7 ZOOM slider to zoom' : 'Orbit mode (drag to rotate, scroll to zoom)') + ' \u00b7 ' + (IS_TOUCH ? 'WALK for first-person' : '1 = walk') + ' \u00b7 ' + (IS_TOUCH ? '' : 'L grading \u00b7 ') + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '%';
   }
 
   // Real-time coordinates for view recreation

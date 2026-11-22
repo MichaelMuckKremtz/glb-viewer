@@ -195,34 +195,22 @@ src = rep('const FLOOR = 1.072 + EYE, GRAV = 22, JUMP_V = 7.5;  // 1.072 = real 
 
 # ---------- vertical movement: E/Q velocity override (gravity-free while held) ----------
 VMOV_OLD = """
-    // E/Q ascend/descend override gravity while held; otherwise jump + gravity
-    const eUp = keys['KeyE'], eDn = keys['ControlLeft'] || keys['KeyC'] || keys['KeyQ'];
-    if (eUp || eDn) {
-      pos.y += (eUp ? 3 : -3) * dt;
-      if (pos.y < FLOOR) pos.y = FLOOR;
-      if (pos.y > FLOOR + 3.0) pos.y = FLOOR + 3.0;
-      velY = 0;
-    } else {
-      if (keys['Space'] && pos.y <= FLOOR + 0.05 && velY >= 0) velY = JUMP_V;
-      velY -= GRAV * dt;
-      pos.y += velY * dt;
-      if (pos.y < FLOOR) { pos.y = FLOOR; velY = 0; }
-    }
+
+    // Jump with gravity (Space) — Q/E vertical climb removed (v3: felt like a stuck jump)
+    const FLOOR = FLOOR_Y + EYE, GRAV = 22, JUMP_V = 7.5;
+    if (keys['Space'] && pos.y <= FLOOR + 0.05 && velY >= 0) velY = JUMP_V;
+    velY -= GRAV * dt;
+    pos.y += velY * dt;
+    if (pos.y < FLOOR) { pos.y = FLOOR; velY = 0; }
 """
 VMOV_NEW = """
-    // E/Q ascend/descend override gravity while held; otherwise jump + gravity
-    const eUp = keys['KeyE'], eDn = keys['ControlLeft'] || keys['KeyC'] || keys['KeyQ'];
-    if (eUp || eDn) {
-      pos.y += (eUp ? 3 : -3) * dt;
-      if (pos.y < FLOOR) pos.y = FLOOR;
-      if (pos.y > FLOOR + 3.0) pos.y = FLOOR + 3.0;
-      velY = 0;
-    } else {
-      if (keys['Space'] && pos.y <= FLOOR + 0.05 && velY >= 0) velY = JUMP_V;
-      velY -= GRAV * dt;
-      pos.y += velY * dt;
-      if (pos.y < FLOOR) { pos.y = FLOOR; velY = 0; }
-    }
+
+    // Jump with gravity (Space) — Q/E vertical climb removed (v3: felt like a stuck jump)
+    const FLOOR = FLOOR_Y + EYE, GRAV = 22, JUMP_V = 7.5;
+    if (keys['Space'] && pos.y <= FLOOR + 0.05 && velY >= 0) velY = JUMP_V;
+    velY -= GRAV * dt;
+    pos.y += velY * dt;
+    if (pos.y < FLOOR) { pos.y = FLOOR; velY = 0; }
 """
 src = rep(VMOV_OLD, VMOV_NEW, src)
 

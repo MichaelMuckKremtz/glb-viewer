@@ -189,16 +189,16 @@ def m2(b, port):
     check('M2.2 D strafes', abs(p2['x'] - p1['x']) + abs(p2['z'] - p1['z']) > 0.1,
           f'moved={abs(p2["x"] - p1["x"]) + abs(p2["z"] - p1["z"]):.3f}')
 
-    # Q / E vertical
-    t.pg.evaluate('velY = 0; pos.y = FLOOR_Y + EYE + 1.0'); t.pg.wait_for_timeout(200)
+    # Q / E vertical movement removed — holding them must do nothing
+    t.pg.evaluate('velY = 0; pos.y = FLOOR_Y + EYE'); t.pg.wait_for_timeout(200)
     a = t.pg.evaluate('pos.y')
-    K('KeyQ', 1200)
-    yq = t.pg.evaluate('pos.y')
-    check('M2.3 Q descends', yq < a - 0.25, f'{a:.3f} -> {yq:.3f}')
-    a = t.pg.evaluate('pos.y')
-    K('KeyE', 1200)
+    K('KeyE', 1000)
     ye = t.pg.evaluate('pos.y')
-    check('M2.4 E ascends', ye > a + 0.25, f'{a:.3f} -> {ye:.3f}')
+    check('M2.3 E key does nothing (Q/E removed)', abs(ye - a) < 0.15, f'{a:.3f} -> {ye:.3f}')
+    a = t.pg.evaluate('pos.y')
+    K('KeyQ', 1000)
+    yq = t.pg.evaluate('pos.y')
+    check('M2.4 Q key does nothing (Q/E removed)', abs(yq - a) < 0.15, f'{a:.3f} -> {yq:.3f}')
 
     # jump with gravity
     t.pg.evaluate('velY = 0; pos.y = FLOOR_Y + EYE'); t.pg.wait_for_timeout(200)
@@ -233,78 +233,90 @@ def m2(b, port):
     check('M2.9 pose downloads with coords', 'pos: x:' in txt and 'yaw:' in txt and 'mode:' in txt, txt[:60])
     t.pg.close()
 
-    # touch UI on mobile
+    # ---- mobile (Dune UI): orbit standard, zoom slider, walk stick, switch ----
     tm = T(b, port, url, mobile=True, render_mode=False)
     tm.load_model('roomscan.glb')
     tm.ready()
-    ui = tm.pg.evaluate('({j: !!document.getElementById("t-joy"), j2: !!document.getElementById("t-joy2"), q: !!document.getElementById("t-q"), e: !!document.getElementById("t-e"), jn: !!document.getElementById("t-jump")})')
-    check('M2.10 touch UI on mobile (both sticks)', all(ui.values()), str(ui))
+    ui = tm.pg.evaluate('''() => ({
+        joy: !!document.getElementById("t-joy"), modes: !!document.getElementById("t-modes"),
+        zoom: !!document.getElementById("t-zoom"), jump: !!document.getElementById("t-jump"),
+        menu: !!document.getElementById("t-menu"), noLookStick: !document.getElementById("t-joy2") })''')
+    check('M2.10 touch UI present (dune set)', all(ui.values()), str(ui))
+    check('M2.11 mobile boots in ORBIT', tm.pg.evaluate('mode') == 'orbit', str(tm.pg.evaluate('mode')))
+    check('M2.11b orbit has real distance', tm.pg.evaluate('orbit ? camera.position.distanceTo(orbit.target) > 0.5 : false'))
+
+    # walk stick moves the player (switch to WALK first)
+    tm.pg.evaluate("setMode('walk'); __resetKeys();")
+    tm.pg.wait_for_timeout(250)
     x0 = tm.pg.evaluate('pos.x'); z0 = tm.pg.evaluate('pos.z')
-    tm.pg.evaluate("setMode('walk')")
-    tm.pg.wait_for_timeout(150)
     tm.pg.evaluate('''() => {
         const j = document.getElementById('t-joy');
         const r = j.getBoundingClientRect();
         j.dispatchEvent(new PointerEvent('pointerdown', {pointerId: 9, pointerType: 'touch', clientX: r.left + r.width/2, clientY: r.top + r.height/2, bubbles: true}));
         j.dispatchEvent(new PointerEvent('pointermove', {pointerId: 9, pointerType: 'touch', clientX: r.left + r.width/2, clientY: r.top + 10, bubbles: true}));
     }''')
-    tm.pg.wait_for_timeout(400)
+    tm.pg.wait_for_timeout(500)
     tm.pg.evaluate('''() => {
         const j = document.getElementById('t-joy');
-        const r = j.getBoundingClientRect();
-        j.dispatchEvent(new PointerEvent('pointerup', {pointerId: 9, pointerType: 'touch', clientX: r.left + r.width/2, clientY: r.top + r.height/2, bubbles: true}));
+        j.dispatchEvent(new PointerEvent('pointerup', {pointerId: 9, pointerType: 'touch', clientX: 0, clientY: 0, bubbles: true}));
     }''')
     x1 = tm.pg.evaluate('pos.x'); z1 = tm.pg.evaluate('pos.z')
-    check('M2.11 joystick moves player', abs(x1 - x0) + abs(z1 - z0) > 0.1)
+    check('M2.12 walk stick moves player', abs(x1 - x0) + abs(z1 - z0) > 0.1)
 
-    # right look stick changes yaw
-    tm.pg.evaluate("setMode('walk'); __resetKeys();")
-    tm.pg.wait_for_timeout(200)
-    y0 = tm.pg.evaluate('yaw')
-    tm.pg.evaluate('''() => {
-        const j = document.getElementById('t-joy2');
-        const r = j.getBoundingClientRect();
-        j.dispatchEvent(new PointerEvent('pointerdown', {pointerId: 11, pointerType: 'touch', clientX: r.left + r.width/2, clientY: r.top + r.height/2, bubbles: true}));
-        j.dispatchEvent(new PointerEvent('pointermove', {pointerId: 11, pointerType: 'touch', clientX: r.left + r.width/2 + 30, clientY: r.top + r.height/2, bubbles: true}));
-    }''')
-    tm.pg.wait_for_timeout(1200)
-    y1 = tm.pg.evaluate('yaw')
-    tm.pg.evaluate('''() => {
-        const j = document.getElementById('t-joy2');
-        j.dispatchEvent(new PointerEvent('pointerup', {pointerId: 11, pointerType: 'touch', clientX: 0, clientY: 0, bubbles: true}));
-    }''')
-    check('M2.12 right stick looks (yaw changes)', abs(y1 - y0) > 0.08, f'yaw {y0:.2f} -> {y1:.2f}')
-
-    # pinch = zoom (FOV in walk mode) — REAL touch events via CDP, like iPhone
-    tm.pg.evaluate("started = true; document.getElementById('overlay').style.display = 'none';")
-    f0 = tm.pg.evaluate('camera.fov')
-    cdp = tm.pg.context.new_cdp_session(tm.pg)
-    cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart',
-            'touchPoints': [{'x': 100, 'y': 400}, {'x': 200, 'y': 400}]})
-    cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove',
-            'touchPoints': [{'x': 60, 'y': 400}, {'x': 240, 'y': 400}]})
-    tm.pg.wait_for_timeout(200)
+    # zoom slider in WALK changes FOV
+    tm.pg.evaluate('camera.fov = 70; camera.updateProjectionMatrix()')
+    tm.pg.evaluate('() => { const z = document.getElementById("t-zoom"); z.value = 90; z.dispatchEvent(new Event("input")); }')
     f1 = tm.pg.evaluate('camera.fov')
-    cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
-    check('M2.13 pinch zooms (FOV narrows)', f1 < f0 - 5, f'fov {f0} -> {f1}')
+    check('M2.13 zoom slider (walk) narrows FOV', f1 < 60, f'fov={f1}')
+
+    # zoom slider in ORBIT changes camera distance
+    tm.pg.evaluate("setMode('orbit')")
+    tm.pg.wait_for_timeout(200)
+    d0 = tm.pg.evaluate('camera.position.distanceTo(orbit.target)')
+    tm.pg.evaluate('() => { const z = document.getElementById("t-zoom"); z.value = 20; z.dispatchEvent(new Event("input")); }')
+    d1 = tm.pg.evaluate('camera.position.distanceTo(orbit.target)')
+    check('M2.14 zoom slider (orbit) dollies in', d1 < d0 - 0.3, f'{d0:.2f} -> {d1:.2f}')
 
     # WALK/ORBIT segmented switch: tapping a side activates it + highlights it
     r1 = tm.pg.evaluate('''() => {
         document.querySelector('#t-modes button:nth-child(2)').click();
-        return { m: mode, on: [...document.querySelectorAll('#t-modes button')].map(b => b.classList.contains('on')) };
+        return { m: mode, on: [...document.querySelectorAll('#t-modes button')].map(b => b.classList.contains("on")) };
     }''')
     r2 = tm.pg.evaluate('''() => {
         document.querySelector('#t-modes button:nth-child(1)').click();
-        return { m: mode, on: [...document.querySelectorAll('#t-modes button')].map(b => b.classList.contains('on')) };
+        return { m: mode, on: [...document.querySelectorAll('#t-modes button')].map(b => b.classList.contains("on")) };
     }''')
     check('M2.15 WALK/ORBIT switch + highlight',
           r1['m'] == 'orbit' and r1['on'] == [False, True] and r2['m'] == 'walk' and r2['on'] == [True, False],
           f'{r1}, {r2}')
+
+    # no two UI elements overlap (both states, both orientations)
+    overlap_fails = []
+    for state in ('orbit', 'walk'):
+        for vw, vh, orient in [(390, 844, 'portrait'), (844, 390, 'landscape')]:
+            tm.pg.set_viewport_size({'width': vw, 'height': vh})
+            tm.pg.evaluate(f"setMode('{state}')")
+            tm.pg.wait_for_timeout(150)
+            boxes = tm.pg.evaluate('''() => [...document.querySelectorAll("#t-modes, #t-menu, #t-shot, #t-zoomrow, #t-jump, #t-run, #t-joy, #hud, #coords")]
+                .map(el => { const r = el.getBoundingClientRect();
+                              return { id: el.id, x: r.x, y: r.y, w: r.width, h: r.height }; })
+                .filter(b => b.w > 0 && b.h > 0)''')
+            for a_i in range(len(boxes)):
+                for b_i in range(a_i + 1, len(boxes)):
+                    a, c = boxes[a_i], boxes[b_i]
+                    ox = min(a['x'] + a['w'], c['x'] + c['w']) - max(a['x'], c['x'])
+                    oy = min(a['y'] + a['h'], c['y'] + c['h']) - max(a['y'], c['y'])
+                    if ox > 1 and oy > 1:
+                        overlap_fails.append(f'{state}/{orient}: {a["id"]} x {c["id"]}')
+    tm.pg.set_viewport_size({'width': 390, 'height': 844})
+    check('M2.16 no UI overlap (all states/orientations)', not overlap_fails, str(overlap_fails[:3]))
+    check('M2.16b no console errors on mobile', not tm.errs, str(tm.errs[:2]))
+
     # no touch UI on desktop
     d2 = T(b, port, url)
     d2.load_model('roomscan.glb'); d2.ready()
-    check('M2.14 no touch UI leak on desktop',
-          d2.pg.evaluate('!document.getElementById("t-joy") && !document.getElementById("t-joy2")'))
+    check('M2.17 no touch UI leak on desktop',
+          d2.pg.evaluate('!document.getElementById("t-joy") && !document.getElementById("t-modes") && !document.getElementById("t-zoom")'))
     d2.pg.close()
     tm.pg.close()
 
