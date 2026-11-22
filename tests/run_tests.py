@@ -237,8 +237,8 @@ def m2(b, port):
     tm = T(b, port, url, mobile=True, render_mode=False)
     tm.load_model('roomscan.glb')
     tm.ready()
-    ui = tm.pg.evaluate('({j: !!document.getElementById("t-joy"), q: !!document.getElementById("t-q"), e: !!document.getElementById("t-e"), jn: !!document.getElementById("t-jump")})')
-    check('M2.10 touch UI on mobile', all(ui.values()), str(ui))
+    ui = tm.pg.evaluate('({j: !!document.getElementById("t-joy"), j2: !!document.getElementById("t-joy2"), q: !!document.getElementById("t-q"), e: !!document.getElementById("t-e"), jn: !!document.getElementById("t-jump")})')
+    check('M2.10 touch UI on mobile (both sticks)', all(ui.values()), str(ui))
     x0 = tm.pg.evaluate('pos.x'); z0 = tm.pg.evaluate('pos.z')
     tm.pg.evaluate("setMode('walk')")
     tm.pg.wait_for_timeout(150)
@@ -256,6 +256,47 @@ def m2(b, port):
     }''')
     x1 = tm.pg.evaluate('pos.x'); z1 = tm.pg.evaluate('pos.z')
     check('M2.11 joystick moves player', abs(x1 - x0) + abs(z1 - z0) > 0.1)
+
+    # right look stick changes yaw
+    tm.pg.evaluate("setMode('walk'); __resetKeys();")
+    tm.pg.wait_for_timeout(200)
+    y0 = tm.pg.evaluate('yaw')
+    tm.pg.evaluate('''() => {
+        const j = document.getElementById('t-joy2');
+        const r = j.getBoundingClientRect();
+        j.dispatchEvent(new PointerEvent('pointerdown', {pointerId: 11, pointerType: 'touch', clientX: r.left + r.width/2, clientY: r.top + r.height/2, bubbles: true}));
+        j.dispatchEvent(new PointerEvent('pointermove', {pointerId: 11, pointerType: 'touch', clientX: r.left + r.width/2 + 30, clientY: r.top + r.height/2, bubbles: true}));
+    }''')
+    tm.pg.wait_for_timeout(1200)
+    y1 = tm.pg.evaluate('yaw')
+    tm.pg.evaluate('''() => {
+        const j = document.getElementById('t-joy2');
+        j.dispatchEvent(new PointerEvent('pointerup', {pointerId: 11, pointerType: 'touch', clientX: 0, clientY: 0, bubbles: true}));
+    }''')
+    check('M2.12 right stick looks (yaw changes)', abs(y1 - y0) > 0.08, f'yaw {y0:.2f} -> {y1:.2f}')
+
+    # pinch = zoom (FOV in walk mode)
+    f0 = tm.pg.evaluate('camera.fov')
+    tm.pg.evaluate('''() => {
+        const c = document.querySelector('canvas');
+        const mk = (id, x, y, type) => c.dispatchEvent(new PointerEvent(type, {pointerId: id, pointerType: 'touch', clientX: x, clientY: y, bubbles: true}));
+        mk(71, 100, 400, 'pointerdown'); mk(72, 200, 400, 'pointerdown');
+        mk(71, 60, 400, 'pointermove'); mk(72, 240, 400, 'pointermove');
+    }''')
+    tm.pg.wait_for_timeout(150)
+    f1 = tm.pg.evaluate('camera.fov')
+    tm.pg.evaluate('''() => {
+        const c = document.querySelector('canvas');
+        const mk = (id, x, y, type) => c.dispatchEvent(new PointerEvent(type, {pointerId: id, pointerType: 'touch', clientX: x, clientY: y, bubbles: true}));
+        mk(71, 60, 400, 'pointerup'); mk(72, 240, 400, 'pointerup');
+    }''')
+    check('M2.13 pinch zooms (FOV narrows)', f1 < f0 - 5, f'fov {f0} -> {f1}')
+    # no touch UI on desktop
+    d2 = T(b, port, url)
+    d2.load_model('roomscan.glb'); d2.ready()
+    check('M2.14 no touch UI leak on desktop',
+          d2.pg.evaluate('!document.getElementById("t-joy") && !document.getElementById("t-joy2")'))
+    d2.pg.close()
     tm.pg.close()
 
 # ---------------------------------------------------------------- main

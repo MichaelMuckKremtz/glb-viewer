@@ -4283,11 +4283,11 @@ window.__resetKeys = () => { for (const k in keys) keys[k] = false; };  // test 
 
 // ---------- Mobile touch UI (touch devices only) ----------
 const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-let touchRun = false, touchJoyX = 0, touchJoyY = 0;
+let touchRun = false, touchJoyX = 0, touchJoyY = 0, touchLookX = 0, touchLookY = 0;
 if (IS_TOUCH && !window.__renderMode) {
   // touch-friendly overlay text
   const op = overlay.querySelector('p');
-  if (op) op.innerHTML = 'Tap to start.<br/>Drag on the scene to look around \u00b7 left stick to move \u00b7 pinch to change brightness.<br/>Buttons: JUMP \u00b7 Q down \u00b7 E up \u00b7 RUN \u00b7 MENU (grading) \u00b7 SHOT';
+  if (op) op.innerHTML = 'Tap to start.<br/>Left stick = walk \u00b7 right stick = look \u00b7 pinch = zoom \u00b7 drag = look.<br/>Buttons: JUMP \u00b7 Q down \u00b7 E up \u00b7 RUN \u00b7 MENU (grading + brightness) \u00b7 SHOT';
   const st = document.createElement('style');
   st.textContent = `
     html, body { position: fixed; inset: 0; overscroll-behavior: none; touch-action: none; }
@@ -4299,12 +4299,17 @@ if (IS_TOUCH && !window.__renderMode) {
     #t-joy { position: fixed; z-index: 30; left: 18px; bottom: calc(64px + env(safe-area-inset-bottom));
       width: 128px; height: 128px; border-radius: 50%;
       background: rgba(20,24,32,.45); border: 2px solid rgba(255,255,255,.25); touch-action: none; }
+    #t-joy2 { position: fixed; z-index: 30; right: 18px; bottom: calc(64px + env(safe-area-inset-bottom));
+      width: 128px; height: 128px; border-radius: 50%;
+      background: rgba(20,24,32,.45); border: 2px solid rgba(255,255,255,.25); touch-action: none; }
     #t-knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
       border-radius: 50%; background: rgba(255,255,255,.5); border: 2px solid #fff; }
-    #t-jump { right: 22px; bottom: calc(66px + env(safe-area-inset-bottom)); width: 84px; height: 84px; border-radius: 50%; font-size: 13px; }
-    #t-q { right: 122px; bottom: calc(132px + env(safe-area-inset-bottom)); width: 58px; height: 58px; border-radius: 50%; }
-    #t-e { right: 122px; bottom: calc(62px + env(safe-area-inset-bottom)); width: 58px; height: 58px; border-radius: 50%; }
-    #t-run { right: 122px; bottom: calc(202px + env(safe-area-inset-bottom)); width: 58px; height: 40px; border-radius: 20px; font-size: 12px; }
+    #t-knob2 { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
+      border-radius: 50%; background: rgba(255,255,255,.5); border: 2px solid #fff; }
+    #t-jump { left: calc(50% - 42px); bottom: calc(70px + env(safe-area-inset-bottom)); width: 84px; height: 84px; border-radius: 50%; font-size: 13px; }
+    #t-q { left: calc(50% - 60px); bottom: calc(210px + env(safe-area-inset-bottom)); width: 52px; height: 52px; border-radius: 50%; }
+    #t-e { left: calc(50% + 8px); bottom: calc(210px + env(safe-area-inset-bottom)); width: 52px; height: 52px; border-radius: 50%; }
+    #t-run { left: 16px; top: calc(58px + env(safe-area-inset-top)); width: 58px; height: 40px; border-radius: 20px; font-size: 12px; }
     #t-menu { left: 16px; top: calc(12px + env(safe-area-inset-top)); }
     #t-shot { left: calc(50% + 76px); top: calc(12px + env(safe-area-inset-top)); }
   `;
@@ -4333,6 +4338,29 @@ if (IS_TOUCH && !window.__renderMode) {
   joy.addEventListener('pointermove', (e) => { if (e.pointerId === joyId) joyMove(e); });
   const joyEnd = (e) => { if (e.pointerId !== joyId) return; joyId = null; touchJoyX = 0; touchJoyY = 0; knob.style.transform = ''; };
   joy.addEventListener('pointerup', joyEnd); joy.addEventListener('pointercancel', joyEnd);
+  // look stick (bottom-right) — analog yaw/pitch
+  const joy2 = document.createElement('div'); joy2.id = 't-joy2';
+  const knob2 = document.createElement('div'); knob2.id = 't-knob2'; joy2.appendChild(knob2);
+  document.body.appendChild(joy2);
+  let joy2Id = null;
+  const joy2Move = (e) => {
+    let dx = e.clientX - joy2.dataset.cx, dy = e.clientY - joy2.dataset.cy;
+    const d = Math.hypot(dx, dy);
+    if (d > JOY_R) { dx *= JOY_R / d; dy *= JOY_R / d; }
+    knob2.style.transform = `translate(${dx}px, ${dy}px)`;
+    touchLookX = dx / JOY_R; touchLookY = -dy / JOY_R;
+  };
+  joy2.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    joy2Id = e.pointerId;
+    try { joy2.setPointerCapture(joy2Id); } catch (err) {}
+    const r = joy2.getBoundingClientRect();
+    joy2.dataset.cx = r.left + r.width / 2; joy2.dataset.cy = r.top + r.height / 2;
+    joy2Move(e);
+  });
+  joy2.addEventListener('pointermove', (e) => { if (e.pointerId === joy2Id) joy2Move(e); });
+  const joy2End = (e) => { if (e.pointerId !== joy2Id) return; joy2Id = null; touchLookX = 0; touchLookY = 0; knob2.style.transform = ''; };
+  joy2.addEventListener('pointerup', joy2End); joy2.addEventListener('pointercancel', joy2End);
   // press-and-hold button mapped to a virtual key
   const holdBtn = (id, label, key) => {
     const b = document.createElement('button'); b.id = id; b.className = 't-btn'; b.textContent = label;
@@ -4355,10 +4383,10 @@ if (IS_TOUCH && !window.__renderMode) {
   const shotBtn = document.createElement('button'); shotBtn.id = 't-shot'; shotBtn.className = 't-btn'; shotBtn.textContent = 'SHOT';
   document.body.appendChild(shotBtn);
   shotBtn.addEventListener('click', () => saveScreenshot());
-  // look: one finger drag on canvas / pinch: brightness
+  // look: one finger drag on canvas / pinch: zoom (FOV in walk, dolly in orbit)
   let lookId = null, lx = 0, ly = 0;
   const pts = new Map();
-  let pinchDist = 0, pinchBright = 1;
+  let pinchDist = 0, pinchStart = null;
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType !== 'touch') return;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -4367,7 +4395,7 @@ if (IS_TOUCH && !window.__renderMode) {
       lookId = null;
       const a = [...pts.values()];
       pinchDist = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
-      pinchBright = brightK;
+      pinchStart = { mode: mode, fov: camera.fov, dist: orbit ? camera.position.distanceTo(orbit.target) : 0 };
     }
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -4382,9 +4410,16 @@ if (IS_TOUCH && !window.__renderMode) {
     } else if (pts.size === 2) {
       const a = [...pts.values()];
       const d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
-      if (pinchDist > 0) {
-        brightK = THREE.MathUtils.clamp(pinchBright * Math.pow(d / pinchDist, 1.5), 0.15, 4);
-        applyLightIntensity();
+      if (pinchDist > 0 && pinchStart) {
+        const ratio = Math.pow(pinchDist / d, 0.8);  // fingers apart -> zoom in
+        if (pinchStart.mode === 'orbit' && orbit) {
+          camera.position.sub(orbit.target)
+            .setLength(THREE.MathUtils.clamp(pinchStart.dist * ratio, 0.3, 80))
+            .add(orbit.target);
+        } else {
+          camera.fov = THREE.MathUtils.clamp(pinchStart.fov * ratio, 25, 95);
+          camera.updateProjectionMatrix();
+        }
       }
       pinchDist = d;
     }
@@ -4392,7 +4427,7 @@ if (IS_TOUCH && !window.__renderMode) {
   const pEnd = (e) => {
     if (e.pointerType !== 'touch') return;
     pts.delete(e.pointerId);
-    if (pts.size < 2) pinchDist = 0;
+    if (pts.size < 2) { pinchDist = 0; pinchStart = null; }
     if (pts.size === 1) { const [id, p] = [...pts.entries()][0]; lookId = id; lx = p.x; ly = p.y; }
     else lookId = null;
   };
@@ -4879,6 +4914,14 @@ function animate() {
       pos.addScaledVector(right, ix * speed * dt);
     }
 
+    // Right look stick (touch): analog yaw/pitch
+    if (touchLookX || touchLookY) {
+      yaw   -= touchLookX * 2.6 * dt;
+      pitch += touchLookY * 2.6 * dt;
+      const lim = Math.PI / 2 - 0.05;
+      pitch = Math.max(-lim, Math.min(lim, pitch));
+    }
+
     // Jump with gravity (Space) + optional free-descend (C)
     const FLOOR = FLOOR_Y + EYE, GRAV = 22, JUMP_V = 7.5;
     // E/Q ascend/descend override gravity while held; otherwise jump + gravity
@@ -4900,7 +4943,7 @@ function animate() {
     fill.position.copy(camera.position);
 
     hud.textContent = IS_TOUCH
-      ? 'stick = move \u00b7 drag = look \u00b7 pinch = brightness \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '%'
+      ? 'L stick = walk \u00b7 R stick = look \u00b7 pinch = zoom \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '%'
       : 'WASD move \u00b7 Shift run \u00b7 Space jump \u00b7 Q/E down/up \u00b7 L grading \u00b7 ' + LIGHT_PRESETS[lightIdx].name + ' ' + Math.round(brightK * 100) + '% \u00b7 F shot \u00b7 P pose \u00b7 2 = orbit' + (pointerLocked ? '' : ' \u00b7 drag to look / click to capture mouse');
   } else {
     if (orbit) orbit.update();
