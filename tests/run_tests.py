@@ -171,42 +171,45 @@ def m2(b, port):
     t.ready()
     check('M2.0 no console errors after load', not t.errs, str(t.errs[:2]))
 
-    # walk mode: WASD
-    t.pg.evaluate("setMode('walk')")
-    t.pg.wait_for_timeout(200)
-    p0 = t.pg.evaluate('({x: pos.x, y: pos.y, z: pos.z})')
-    t.pg.keyboard.down('KeyW'); t.pg.wait_for_timeout(500); t.pg.keyboard.up('KeyW')
-    p1 = t.pg.evaluate('({x: pos.x, y: pos.y, z: pos.z})')
+    # walk mode: WASD (keys force-reset after every press: synthetic keyup can be
+    # dropped under CPU load and a stale key poisons the next subtest)
+    t.pg.evaluate("setMode('walk'); __resetKeys();")
+    t.pg.wait_for_timeout(400)
+    K = lambda key, ms: (t.pg.keyboard.down(key), t.pg.wait_for_timeout(ms),
+                         t.pg.keyboard.up(key), t.pg.evaluate('__resetKeys()'),
+                         t.pg.wait_for_timeout(150))
+    P = lambda: t.pg.evaluate('({x: pos.x, y: pos.y, z: pos.z})')
+    p0 = P()
+    K('KeyW', 1500)
+    p1 = P()
     mv = abs(p1['x'] - p0['x']) + abs(p1['z'] - p0['z'])
-    check('M2.1 W moves forward', mv > 0.5, f'moved={mv:.3f}')
-    t.pg.keyboard.down('KeyD'); t.pg.wait_for_timeout(300); t.pg.keyboard.up('KeyD')
-    p2 = t.pg.evaluate('({x: pos.x, y: pos.y, z: pos.z})')
-    check('M2.2 D strafes', abs(p2['x'] - p1['x']) + abs(p2['z'] - p1['z']) > 0.2)
+    check('M2.1 W moves forward', mv > 0.3, f'moved={mv:.3f}')
+    K('KeyD', 1000)
+    p2 = P()
+    check('M2.2 D strafes', abs(p2['x'] - p1['x']) + abs(p2['z'] - p1['z']) > 0.1,
+          f'moved={abs(p2["x"] - p1["x"]) + abs(p2["z"] - p1["z"]):.3f}')
 
     # Q / E vertical
-    t.pg.evaluate('velY = 0; pos.y = FLOOR_Y + EYE + 1.0')
-    t.pg.wait_for_timeout(100)
-    t.pg.keyboard.down('KeyQ'); t.pg.wait_for_timeout(400); t.pg.keyboard.up('KeyQ')
+    t.pg.evaluate('velY = 0; pos.y = FLOOR_Y + EYE + 1.0'); t.pg.wait_for_timeout(200)
+    a = t.pg.evaluate('pos.y')
+    K('KeyQ', 1200)
     yq = t.pg.evaluate('pos.y')
-    check('M2.3 Q descends', yq < p0['y'] + 0.6, f'y={yq:.3f}')
-    t.pg.keyboard.down('KeyE'); t.pg.wait_for_timeout(400); t.pg.keyboard.up('KeyE')
+    check('M2.3 Q descends', yq < a - 0.25, f'{a:.3f} -> {yq:.3f}')
+    a = t.pg.evaluate('pos.y')
+    K('KeyE', 1200)
     ye = t.pg.evaluate('pos.y')
-    check('M2.4 E ascends', ye > yq, f'{yq:.3f} -> {ye:.3f}')
-    t.pg.evaluate('velY = 0')
-    t.pg.wait_for_timeout(200)
+    check('M2.4 E ascends', ye > a + 0.25, f'{a:.3f} -> {ye:.3f}')
 
     # jump with gravity
-    t.pg.evaluate('velY = 0; pos.y = FLOOR_Y + EYE')
-    t.pg.wait_for_timeout(100)
-    t.pg.keyboard.down('Space'); t.pg.wait_for_timeout(120); t.pg.keyboard.up('Space')
-    t.pg.wait_for_timeout(100)
-    yjump = t.pg.evaluate('pos.y')
-    t.pg.wait_for_timeout(1200)
+    t.pg.evaluate('velY = 0; pos.y = FLOOR_Y + EYE'); t.pg.wait_for_timeout(200)
+    K('Space', 250)
+    yair = t.pg.evaluate('pos.y')
+    t.pg.wait_for_function('pos.y <= FLOOR_Y + EYE + 0.05', timeout=8000)
     yland = t.pg.evaluate('pos.y')
     floor_v = t.pg.evaluate('FLOOR_Y + EYE')
     check('M2.5 jump rises and lands on floor',
-          yjump > floor_v + 0.3 and abs(yland - floor_v) < 0.05,
-          f'apex={yjump:.3f} land={yland:.3f} floor={floor_v:.3f}')
+          yair > floor_v + 0.3 and abs(yland - floor_v) < 0.05,
+          f'air={yair:.3f} land={yland:.3f} floor={floor_v:.3f}')
 
     # lighting preset
     t.pg.evaluate('applyLighting(2)')

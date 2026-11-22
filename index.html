@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <link rel="icon" type="image/svg+xml" href="logo.svg"><link rel="alternate icon" href="icon.png">
 <title>GLB 3D Viewer</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #111; font-family: system-ui, sans-serif; }
@@ -4278,6 +4279,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyP') savePose();
 });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+window.__resetKeys = () => { for (const k in keys) keys[k] = false; };  // test hook
 
 // ---------- Mobile touch UI (touch devices only) ----------
 const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;

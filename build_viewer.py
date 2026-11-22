@@ -195,12 +195,19 @@ src = rep('const FLOOR = 1.072 + EYE, GRAV = 22, JUMP_V = 7.5;  // 1.072 = real 
 
 # ---------- vertical movement: E/Q velocity override (gravity-free while held) ----------
 VMOV_OLD = """
-    if (keys['Space'] && pos.y <= FLOOR + 0.05 && velY >= 0) velY = JUMP_V;
-    velY -= GRAV * dt;
-    pos.y += velY * dt;
-    if (pos.y < FLOOR) { pos.y = FLOOR; velY = 0; }
-    if (keys['ControlLeft'] || keys['KeyC'] || keys['KeyQ']) pos.y = Math.max(FLOOR, pos.y - 3 * dt);
-    if (keys['KeyE']) pos.y = Math.min(FLOOR + 3.0, pos.y + 3 * dt);
+    // E/Q ascend/descend override gravity while held; otherwise jump + gravity
+    const eUp = keys['KeyE'], eDn = keys['ControlLeft'] || keys['KeyC'] || keys['KeyQ'];
+    if (eUp || eDn) {
+      pos.y += (eUp ? 3 : -3) * dt;
+      if (pos.y < FLOOR) pos.y = FLOOR;
+      if (pos.y > FLOOR + 3.0) pos.y = FLOOR + 3.0;
+      velY = 0;
+    } else {
+      if (keys['Space'] && pos.y <= FLOOR + 0.05 && velY >= 0) velY = JUMP_V;
+      velY -= GRAV * dt;
+      pos.y += velY * dt;
+      if (pos.y < FLOOR) { pos.y = FLOOR; velY = 0; }
+    }
 """
 VMOV_NEW = """
     // E/Q ascend/descend override gravity while held; otherwise jump + gravity
